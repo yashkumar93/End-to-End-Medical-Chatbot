@@ -7,6 +7,7 @@ from src.prompt import system_prompt
 from flask_cors import CORS
 import os
 import re
+from threading import Lock
 from uuid import uuid4
 
 load_dotenv()
@@ -31,22 +32,37 @@ if not GROQ_API_KEY:
     raise ValueError("Missing GROQ_API_KEY in environment")
 
 groq_client = Groq(api_key=GROQ_API_KEY)
-embeddings = download_hugging_face_embeddings()
+retriever = None
+retriever_lock = Lock()
 
-if PINECONE_HOST:
-    cleaned_host = PINECONE_HOST.replace("https://", "").replace("http://", "").rstrip("/")
-    docsearch = PineconeVectorStore(
-        embedding=embeddings,
-        pinecone_api_key=PINECONE_API_KEY,
-        host=cleaned_host,
-    )
-else:
-    docsearch = PineconeVectorStore.from_existing_index(
-        index_name=PINECONE_INDEX_NAME,
-        embedding=embeddings,
-    )
 
-retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
+def get_retriever():
+    global retriever
+
+    if retriever is not None:
+        return retriever
+
+    with retriever_lock:
+        if retriever is not None:
+            return retriever
+
+        embeddings = download_hugging_face_embeddings()
+
+        if PINECONE_HOST:
+            cleaned_host = PINECONE_HOST.replace("https://", "").replace("http://", "").rstrip("/")
+            docsearch = PineconeVectorStore(
+                embedding=embeddings,
+                pinecone_api_key=PINECONE_API_KEY,
+                host=cleaned_host,
+            )
+        else:
+            docsearch = PineconeVectorStore.from_existing_index(
+                index_name=PINECONE_INDEX_NAME,
+                embedding=embeddings,
+            )
+
+        retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
+        return retriever
 
 
 def sanitize_response(text: str) -> str:
@@ -73,7 +89,7 @@ def index():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return {"status": "ok"}, 200
+    return {"status": "ok", "retriever_ready": retriever is not None}, 200
 
 
 @app.route("/get", methods=["GET", "POST"])
@@ -89,7 +105,12 @@ def chat():
 
     history = get_session_history()
 
-    docs = retriever.invoke(msg)
+    try:
+        active_retriever = get_retriever()
+    except Exception:
+        return "Retriever initialization failed. Please try again.", 503
+
+    docs = active_retriever.invoke(msg)
     context = "\n\n".join(doc.page_content for doc in docs)
     formatted_system_prompt = system_prompt.format(context=context)
 
