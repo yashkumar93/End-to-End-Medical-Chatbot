@@ -54,7 +54,12 @@
                     <h1>Medical Assistant</h1>
                     <p>Ask clinical or medication questions based on the indexed medical handbook.</p>
                 </div>
-                <div class="header-chip" aria-label="Session mode">Clinical QA Mode</div>
+                <div class="header-controls">
+                    <div class="header-chip" aria-label="Session mode">Clinical QA Mode</div>
+                    <button type="button" id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode" aria-pressed="false">
+                        Dark Mode
+                    </button>
+                </div>
             </header>
 
             <div id="chatLog" class="chat-log" aria-live="polite">
@@ -93,6 +98,24 @@
         const messageForm = document.getElementById("messageArea");
         const inputField = document.getElementById("text");
         const sendButton = document.getElementById("send");
+        const themeToggle = document.getElementById("themeToggle");
+
+        function applyTheme(theme) {
+            const normalizedTheme = theme === "dark" ? "dark" : "light";
+            document.body.setAttribute("data-theme", normalizedTheme);
+            themeToggle.setAttribute("aria-pressed", String(normalizedTheme === "dark"));
+            themeToggle.textContent = normalizedTheme === "dark" ? "Light Mode" : "Dark Mode";
+            localStorage.setItem("medico_theme", normalizedTheme);
+        }
+
+        const savedTheme = localStorage.getItem("medico_theme");
+        const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        applyTheme(savedTheme || (systemPrefersDark ? "dark" : "light"));
+
+        themeToggle.addEventListener("click", () => {
+            const currentTheme = document.body.getAttribute("data-theme") || "light";
+            applyTheme(currentTheme === "dark" ? "light" : "dark");
+        });
 
         const nowTime = () =>
             new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
