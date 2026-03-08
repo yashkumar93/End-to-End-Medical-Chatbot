@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="./style.css">
+</head>
+<body>
+    <main class="workspace">
+        <aside class="info-rail" aria-label="Clinical workspace status">
+            <div class="rail-brand">
+                <span class="brand-dot" aria-hidden="true"></span>
+                <p class="brand-kicker">Clinical AI Workspace</p>
+                <h2>Enterprise Copilot</h2>
+                <p>Secure retrieval across your indexed medical handbook with grounded responses.</p>
+            </div>
+
+            <section class="rail-card">
+                <h3>System Status</h3>
+                <ul>
+                    <li><span class="state online"></span> Groq inference connected</li>
+                    <li><span class="state online"></span> Pinecone vector index ready</li>
+                    <li><span class="state online"></span> Context retrieval active</li>
+                </ul>
+            </section>
+
+            <section class="rail-card">
+                <h3>Response Policy</h3>
+                <ul>
+                    <li>Concise medical explanations</li>
+                    <li>Evidence-guided via retrieval</li>
+                    <li>Escalate urgent concerns offline</li>
+                </ul>
+            </section>
+
+            <div class="rail-badge-row">
+                <span class="rail-badge">Audit Friendly</span>
+                <span class="rail-badge">Role Ready</span>
+                <span class="rail-badge">Secure Context</span>
+            </div>
+        </aside>
+
+        <section class="chat-panel" aria-label="Medical assistant chat">
+            <header class="chat-header">
+                <div class="assistant-avatar-wrap">
+                    <img src="https://cdn-icons-png.flaticon.com/512/387/387569.png" class="assistant-avatar" alt="Medical assistant avatar">
+                    <span class="assistant-status" aria-hidden="true"></span>
+                </div>
+                <div class="assistant-meta">
+                    <h1>Medical Assistant</h1>
+                    <p>Ask clinical or medication questions based on the indexed medical handbook.</p>
+                </div>
+                <div class="header-chip" aria-label="Session mode">Clinical QA Mode</div>
+            </header>
+
+            <div id="chatLog" class="chat-log" aria-live="polite">
+                <article class="message-row bot" aria-label="Assistant message">
+                    <img src="https://cdn-icons-png.flaticon.com/512/387/387569.png" class="message-avatar" alt="">
+                    <div class="message-bubble">
+                        <p>Hello, I am ready to help with medical knowledge queries. What would you like to ask?</p>
+                        <time class="timestamp">Now</time>
+                    </div>
+                </article>
+            </div>
+
+            <footer class="chat-footer">
+                <form id="messageArea" class="composer" autocomplete="off">
+                    <label class="sr-only" for="text">Enter your question</label>
+                    <input
+                        type="text"
+                        id="text"
+                        name="msg"
+                        placeholder="Type your question here..."
+                        maxlength="500"
+                        required
+                    >
+                    <button type="submit" id="send" aria-label="Send message">Send</button>
+                </form>
+                <p class="helper-text">Informational support only. For urgent concerns, contact a licensed clinician.</p>
+            </footer>
+        </section>
+    </main>
+
+    <script>
+        const BOT_AVATAR = "https://cdn-icons-png.flaticon.com/512/387/387569.png";
+        const USER_AVATAR = "https://i.ibb.co/d5b84Xw/Untitled-design.png";
+
+        const chatLog = document.getElementById("chatLog");
+        const messageForm = document.getElementById("messageArea");
+        const inputField = document.getElementById("text");
+        const sendButton = document.getElementById("send");
+
+        const nowTime = () =>
+            new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+        function appendMessage(role, text) {
+            const row = document.createElement("article");
+            row.className = `message-row ${role}`;
+            row.setAttribute("aria-label", role === "user" ? "Your message" : "Assistant message");
+
+            const avatar = document.createElement("img");
+            avatar.className = "message-avatar";
+            avatar.src = role === "user" ? USER_AVATAR : BOT_AVATAR;
+            avatar.alt = "";
+
+            const bubble = document.createElement("div");
+            bubble.className = "message-bubble";
+
+            const content = document.createElement("p");
+            content.textContent = text;
+
+            const time = document.createElement("time");
+            time.className = "timestamp";
+            time.textContent = nowTime();
+
+            bubble.append(content, time);
+            row.append(avatar, bubble);
+            chatLog.appendChild(row);
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+
+        function appendTypingIndicator() {
+            const row = document.createElement("article");
+            row.className = "message-row bot typing-row";
+            row.setAttribute("aria-label", "Assistant typing");
+
+            const avatar = document.createElement("img");
+            avatar.className = "message-avatar";
+            avatar.src = BOT_AVATAR;
+            avatar.alt = "";
+
+            const bubble = document.createElement("div");
+            bubble.className = "message-bubble typing-bubble";
+            bubble.innerHTML = `
+                <div class="typing-dots" aria-hidden="true">
+                    <span></span><span></span><span></span>
+                </div>
+            `;
+
+            row.append(avatar, bubble);
+            chatLog.appendChild(row);
+            chatLog.scrollTop = chatLog.scrollHeight;
+            return row;
+        }
+
+        messageForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const rawText = inputField.value.trim();
+            if (!rawText) {
+                return;
+            }
+
+            appendMessage("user", rawText);
+            inputField.value = "";
+            inputField.focus();
+
+            inputField.disabled = true;
+            sendButton.disabled = true;
+            const typingNode = appendTypingIndicator();
+
+            try {
+                const response = await fetch("/api/get", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+                    body: new URLSearchParams({ msg: rawText })
+                });
+
+                const reply = (await response.text()).trim();
+                typingNode.remove();
+                appendMessage("bot", reply || "I could not generate a response this time.");
+            } catch (error) {
+                typingNode.remove();
+                appendMessage("bot", "Connection issue detected. Please try sending your question again.");
+            } finally {
+                inputField.disabled = false;
+                sendButton.disabled = false;
+                inputField.focus();
+            }
+        });
+    </script>
+</body>
+</html>

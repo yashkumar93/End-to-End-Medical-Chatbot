@@ -1,0 +1,14 @@
+sentence-transformers>=5.2.3
+langchain
+flask
+flask-cors
+gunicorn
+pypdf
+python-dotenv
+pinecone[grpc]
+langchain-pinecone
+langchain_community
+langchain_openai
+langchain_experimental
+groq
+-e .
