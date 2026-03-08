@@ -1,0 +1,9 @@
+{
+  "name": "medical-chatbot-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Static frontend for Vercel deployment",
+  "scripts": {
+    "build": "echo \"No build step required\""
+  }
+}
