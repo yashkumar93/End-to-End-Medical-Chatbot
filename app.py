@@ -69,6 +69,17 @@ def sanitize_response(text: str) -> str:
     # Remove model reasoning blocks that should not be shown in the UI.
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.IGNORECASE | re.DOTALL)
     text = re.sub(r"</?think>", "", text, flags=re.IGNORECASE)
+
+    # Block identity/vendor disclosure responses and force medical-only fallback.
+    identity_patterns = [
+        r"\b(developed|built|created|trained)\s+by\b",
+        r"\b(alibaba|openai|google|meta|anthropic|microsoft)\b",
+        r"\b(language model|large language model|llm|training data)\b",
+        r"\bi am an ai\b",
+    ]
+    if any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in identity_patterns):
+        return "I can help with medical questions and health guidance only. Please share your medical concern, symptoms, or treatment question."
+
     return text.strip()
 
 
