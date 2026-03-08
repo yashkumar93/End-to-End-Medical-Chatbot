@@ -5,6 +5,30 @@ function normalizeBackendUrl(rawUrl) {
     return rawUrl.replace(/\/+$/, "");
 }
 
+function resolveChatEndpoint(baseUrl) {
+    if (baseUrl.endsWith("/api/get") || baseUrl.endsWith("/get")) {
+        return baseUrl;
+    }
+
+    if (baseUrl.endsWith("/api")) {
+        return `${baseUrl}/get`;
+    }
+
+    return `${baseUrl}/get`;
+}
+
+function resolveFallbackEndpoint(baseUrl) {
+    if (baseUrl.endsWith("/api/get") || baseUrl.endsWith("/get")) {
+        return "";
+    }
+
+    if (baseUrl.endsWith("/api")) {
+        return "";
+    }
+
+    return `${baseUrl}/api/get`;
+}
+
 function extractMessage(req) {
     if (!req.body) {
         return "";
@@ -39,13 +63,27 @@ export default async function handler(req, res) {
     }
 
     try {
-        const upstreamResponse = await fetch(`${backendBaseUrl}/get`, {
+        const chatEndpoint = resolveChatEndpoint(backendBaseUrl);
+        let upstreamResponse = await fetch(chatEndpoint, {
             method: "POST",
             headers: {
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
             },
             body: new URLSearchParams({ msg }).toString(),
         });
+
+        if (upstreamResponse.status === 404 || upstreamResponse.status === 405) {
+            const fallbackEndpoint = resolveFallbackEndpoint(backendBaseUrl);
+            if (fallbackEndpoint) {
+                upstreamResponse = await fetch(fallbackEndpoint, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                    },
+                    body: new URLSearchParams({ msg }).toString(),
+                });
+            }
+        }
 
         const text = await upstreamResponse.text();
         return res.status(upstreamResponse.status).send(text);
